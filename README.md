@@ -1,6 +1,11 @@
-# node-jpeg-turbo
+# @julusian/jpeg-turbo
 
-[![Build Status](https://travis-ci.org/sorccu/node-jpeg-turbo.svg?branch=master)](https://travis-ci.org/sorccu/node-jpeg-turbo) [![npm](https://img.shields.io/npm/v/jpeg-turbo.svg)](https://www.npmjs.com/package/jpeg-turbo) [![npm](https://img.shields.io/npm/dm/jpeg-turbo.svg)](https://www.npmjs.com/package/jpeg-turbo) [![npm](https://img.shields.io/npm/l/jpeg-turbo.svg)](LICENSE)
+[![Build Status](https://travis-ci.org/julusian/node-jpeg-turbo.svg?branch=master)](https://travis-ci.org/julusian/node-jpeg-turbo)
+[![npm](https://img.shields.io/npm/v/@julusian/jpeg-turbo.svg)](https://www.npmjs.com/package/@julusian/jpeg-turbo)
+[![npm](https://img.shields.io/npm/dm/@julusian/jpeg-turbo.svg)](https://www.npmjs.com/package/@julusian/jpeg-turbo)
+[![npm](https://img.shields.io/npm/l/@julusian/jpeg-turbo.svg)](LICENSE)
+
+This is a fork of [jpeg-turbo](https://github.com/sorccu/node-jpeg-turbo) with the intention of getting the changes merged upstream
 
 **node-jpeg-turbo** provides minimal [libjpeg-turbo](http://libjpeg-turbo.virtualgl.org/) bindings for [Node.js](https://nodejs.org/). It is very, very fast compared to other alternatives, such as [node-imagemagick-native](https://github.com/mash/node-imagemagick-native) or [jpeg-js](https://github.com/eugeneware/jpeg-js).
 
@@ -10,7 +15,7 @@ Please ask if you need more methods exposed.
 
 Only the most recent version of Node still in [*active* Long-term Support](https://github.com/nodejs/LTS#lts-schedule) and greater are supported. Older versions may or may not work; they are not and will not be supported.
 
-We provide prebuilds for some platforms, meaning that you should not have to compile native bindings from source very often. The bindings are hosted at and automatically installed from our [GitHub Releases](https://github.com/sorccu/node-jpeg-turbo).
+We provide prebuilds for some platforms, meaning that you should not have to compile native bindings from source very often. The bindings are hosted at and automatically installed from our [GitHub Releases](https://github.com/julusian/node-jpeg-turbo).
 
 ### If you must build from source
 
