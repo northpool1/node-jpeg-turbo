@@ -27,6 +27,6 @@
   },
   "devDependencies": {
     "jest": "^24.8.0",
-    "prebuild": "^8.2.1"
+    "prebuild": "^9.1.0"
   }
 }
