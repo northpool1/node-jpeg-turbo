@@ -15,4 +15,5 @@
 /appveyor.yml
 /prebuilds
 /.vscode
+/.github
 /tests

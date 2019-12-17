@@ -13,7 +13,7 @@ Please ask if you need more methods exposed.
 
 ## Requirements
 
-Only the most recent version of Node still in [*active* Long-term Support](https://github.com/nodejs/LTS#lts-schedule) and greater are supported. Older versions may or may not work; they are not and will not be supported.
+All versions of Node still in [*active* Long-term Support](https://github.com/nodejs/LTS#lts-schedule) and the current development version are supported. Older versions may or may not work; they are not and will not be supported.
 
 We provide prebuilds for some platforms, meaning that you should not have to compile native bindings from source very often. The bindings are hosted at and automatically installed from our [GitHub Releases](https://github.com/julusian/node-jpeg-turbo).
 
