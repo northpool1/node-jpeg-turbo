@@ -1,6 +1,8 @@
 /*.node.gz
 /*.tgz
 /build/
+/deps/libjpeg-turbo/.git*
+/deps/libjpeg-turbo/ci/
 /deps/libjpeg-turbo/doc/
 /deps/libjpeg-turbo/java/
 /deps/libjpeg-turbo/testimages/
