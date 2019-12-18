@@ -18,7 +18,6 @@ int compress(unsigned char* srcData, uint32_t format, uint32_t width, uint32_t s
   int flags = TJFLAG_FASTDCT;
   uint32_t dstLength = 0;
 
-
   switch (jpegSubsamp) {
     case SAMP_444:
     case SAMP_422:
@@ -117,15 +116,15 @@ class CompressWorker : public AsyncWorker {
         dstObject = NewBuffer((char*)this->dstData, this->jpegSize, compressBufferFreeCallback, NULL).ToLocalChecked();
       }
 
-      obj->Set(New("data").ToLocalChecked(), dstObject);
-      obj->Set(New("size").ToLocalChecked(), New((uint32_t) this->jpegSize));
+      Nan::Set(obj, New("data").ToLocalChecked(), dstObject);
+      Nan::Set(obj, New("size").ToLocalChecked(), New((uint32_t) this->jpegSize));
 
       v8::Local<v8::Value> argv[] = {
         Nan::Null(),
         obj
       };
 
-      callback->Call(2, argv);
+      callback->Call(2, argv, async_resource);
     }
 
   private:
@@ -155,17 +154,17 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   uint32_t dstBufferLength = 0;
   unsigned char* dstData = NULL;
   Local<Object> options;
-  Local<Value> formatObject;
+  Nan::MaybeLocal<Value> formatObject;
   uint32_t format = 0;
-  Local<Value> sampObject;
+  Nan::MaybeLocal<Value> sampObject;
   uint32_t jpegSubsamp = NJT_DEFAULT_SUBSAMPLING;
-  Local<Value> widthObject;
+  Nan::MaybeLocal<Value> widthObject;
   uint32_t width = 0;
-  Local<Value> heightObject;
+  Nan::MaybeLocal<Value> heightObject;
   uint32_t height = 0;
-  Local<Value> strideObject;
+  Nan::MaybeLocal<Value> strideObject;
   uint32_t stride;
-  Local<Value> qualityObject;
+  Nan::MaybeLocal<Value> qualityObject;
   int quality = NJT_DEFAULT_QUALITY;
   int bpp = 0;
   Nan::Maybe<uint32_t> tmpMaybe = Nan::Nothing<uint32_t>();
@@ -212,11 +211,11 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   }
 
   // Format of input buffer
-  formatObject = options->Get(New("format").ToLocalChecked());
-  if (formatObject->IsUndefined()) {
+  formatObject = Get(options, New("format").ToLocalChecked());
+  if (formatObject.IsEmpty() || formatObject.ToLocalChecked()->IsUndefined()) {
     _throw("Missing format");
   }
-  tmpMaybe = Nan::To<uint32_t>(formatObject);
+  tmpMaybe = Nan::To<uint32_t>(formatObject.ToLocalChecked());
   if (tmpMaybe.IsNothing())
   {
     _throw("Invalid input format");
@@ -224,10 +223,10 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   format = tmpMaybe.FromJust();
 
   // Subsampling
-  sampObject = options->Get(New("subsampling").ToLocalChecked());
-  if (!sampObject->IsUndefined())
+  sampObject = Get(options, New("subsampling").ToLocalChecked());
+  if (!sampObject.IsEmpty() && !sampObject.ToLocalChecked()->IsUndefined())
   {
-    tmpMaybe = Nan::To<uint32_t>(sampObject);
+    tmpMaybe = Nan::To<uint32_t>(sampObject.ToLocalChecked());
     if (tmpMaybe.IsNothing())
     {
       _throw("Invalid subsampling method");
@@ -236,12 +235,12 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   }
 
   // Width
-  widthObject = options->Get(New("width").ToLocalChecked());
-  if (widthObject->IsUndefined())
+  widthObject = Get(options, New("width").ToLocalChecked());
+  if (widthObject.IsEmpty() || widthObject.ToLocalChecked()->IsUndefined())
   {
     _throw("Missing width");
   }
-  tmpMaybe = Nan::To<uint32_t>(widthObject);
+  tmpMaybe = Nan::To<uint32_t>(widthObject.ToLocalChecked());
   if (tmpMaybe.IsNothing())
   {
     _throw("Invalid width value");
@@ -249,11 +248,11 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   width = tmpMaybe.FromJust();
 
   // Height
-  heightObject = options->Get(New("height").ToLocalChecked());
-  if (heightObject->IsUndefined()) {
+  heightObject = Get(options, New("height").ToLocalChecked());
+  if (heightObject.IsEmpty() || heightObject.ToLocalChecked()->IsUndefined()) {
     _throw("Missing height");
   }
-  tmpMaybe = Nan::To<uint32_t>(heightObject);
+  tmpMaybe = Nan::To<uint32_t>(heightObject.ToLocalChecked());
   if (tmpMaybe.IsNothing())
   {
     _throw("Invalid height value");
@@ -261,10 +260,10 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   height = tmpMaybe.FromJust();
 
   // Stride
-  strideObject = options->Get(New("stride").ToLocalChecked());
-  if (!strideObject->IsUndefined())
+  strideObject = Get(options, New("stride").ToLocalChecked());
+  if (!strideObject.IsEmpty() && !strideObject.ToLocalChecked()->IsUndefined())
   {
-    tmpMaybe = Nan::To<uint32_t>(strideObject);
+    tmpMaybe = Nan::To<uint32_t>(strideObject.ToLocalChecked());
     if (tmpMaybe.IsNothing())
     {
       _throw("Invalid stride value");
@@ -276,10 +275,10 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   }
 
   // Quality
-  qualityObject = options->Get(New("quality").ToLocalChecked());
-  if (!qualityObject->IsUndefined())
+  qualityObject = Get(options, New("quality").ToLocalChecked());
+  if (!qualityObject.IsEmpty() && !qualityObject.ToLocalChecked()->IsUndefined())
   {
-    tmpMaybe = Nan::To<uint32_t>(qualityObject);
+    tmpMaybe = Nan::To<uint32_t>(qualityObject.ToLocalChecked());
     if (tmpMaybe.IsNothing() || tmpMaybe.FromJust() > 100u)
     {
       _throw("Invalid quality value");
@@ -342,8 +341,8 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
       dstObject = NewBuffer((char*)dstData, jpegSize, compressBufferFreeCallback, NULL).ToLocalChecked();
     }
 
-    obj->Set(New("data").ToLocalChecked(), dstObject);
-    obj->Set(New("size").ToLocalChecked(), New((uint32_t) jpegSize));
+    Nan::Set(obj, New("data").ToLocalChecked(), dstObject);
+    Nan::Set(obj, New("size").ToLocalChecked(), New((uint32_t) jpegSize));
     info.GetReturnValue().Set(obj);
     return;
   }
@@ -358,7 +357,7 @@ void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
       Local<Value> argv[] = {
         New(errStr).ToLocalChecked()
       };
-      callback->Call(1, argv);
+      callback->Call(1, argv, nullptr);
     }
     return;
   }

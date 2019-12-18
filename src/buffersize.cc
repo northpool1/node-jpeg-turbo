@@ -11,11 +11,11 @@ NAN_METHOD(BufferSize) {
   // Input
   Callback *callback = NULL;
   Local<Object> options;
-  Local<Value> sampObject;
+  Nan::MaybeLocal<Value> sampObject;
   uint32_t jpegSubsamp = NJT_DEFAULT_SUBSAMPLING;
-  Local<Value> widthObject;
+  Nan::MaybeLocal<Value> widthObject;
   uint32_t width = 0;
-  Local<Value> heightObject;
+  Nan::MaybeLocal<Value> heightObject;
   uint32_t height = 0;
   uint32_t dstLength = 0;
   Nan::Maybe<uint32_t> tmpMaybe = Nan::Nothing<uint32_t>();
@@ -36,10 +36,10 @@ NAN_METHOD(BufferSize) {
   }
 
   // Subsampling
-  sampObject = options->Get(New("subsampling").ToLocalChecked());
-  if (!sampObject->IsUndefined())
+  sampObject = Get(options, New("subsampling").ToLocalChecked());
+  if (!sampObject.IsEmpty() && !sampObject.ToLocalChecked()->IsUndefined())
   {
-    tmpMaybe = Nan::To<uint32_t>(sampObject);
+    tmpMaybe = Nan::To<uint32_t>(sampObject.ToLocalChecked());
     if (tmpMaybe.IsNothing())
     {
       _throw("Invalid subsampling method");
@@ -59,11 +59,11 @@ NAN_METHOD(BufferSize) {
   }
 
   // Width
-  widthObject = options->Get(New("width").ToLocalChecked());
-  if (widthObject->IsUndefined()) {
+  widthObject = Get(options, New("width").ToLocalChecked());
+  if (widthObject.IsEmpty() || widthObject.ToLocalChecked()->IsUndefined()) {
     _throw("Missing width");
   }
-  tmpMaybe = Nan::To<uint32_t>(widthObject);
+  tmpMaybe = Nan::To<uint32_t>(widthObject.ToLocalChecked());
   if (tmpMaybe.IsNothing())
   {
     _throw("Invalid width value");
@@ -71,11 +71,11 @@ NAN_METHOD(BufferSize) {
   width = tmpMaybe.FromJust();
 
   // Height
-  heightObject = options->Get(New("height").ToLocalChecked());
-  if (heightObject->IsUndefined()) {
+  heightObject = Get(options, New("height").ToLocalChecked());
+  if (heightObject.IsEmpty() || heightObject.ToLocalChecked()->IsUndefined()) {
     _throw("Missing height");
   }
-  tmpMaybe = Nan::To<uint32_t>(heightObject);
+  tmpMaybe = Nan::To<uint32_t>(heightObject.ToLocalChecked());
   if (tmpMaybe.IsNothing())
   {
     _throw("Invalid height value");
@@ -91,7 +91,7 @@ NAN_METHOD(BufferSize) {
       Null(),
       New(dstLength)
     };
-    callback->Call(2, argv);
+    callback->Call(2, argv, nullptr);
   }
   else {
     info.GetReturnValue().Set(New(dstLength));
@@ -107,7 +107,7 @@ NAN_METHOD(BufferSize) {
       Local<Value> argv[] = {
         New(errStr).ToLocalChecked()
       };
-      callback->Call(1, argv);
+      callback->Call(1, argv, nullptr);
     }
     return;
   }

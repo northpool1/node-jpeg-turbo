@@ -126,18 +126,18 @@ class DecompressWorker : public AsyncWorker {
         dstObject = NewBuffer((char*)this->dstData, this->dstLength).ToLocalChecked();
       }
 
-      obj->Set(New("data").ToLocalChecked(), dstObject);
-      obj->Set(New("width").ToLocalChecked(), New(this->width));
-      obj->Set(New("height").ToLocalChecked(), New(this->height));
-      obj->Set(New("size").ToLocalChecked(), New(this->dstLength));
-      obj->Set(New("format").ToLocalChecked(), New(this->format));
+      Nan::Set(obj, New("data").ToLocalChecked(), dstObject);
+      Nan::Set(obj, New("width").ToLocalChecked(), New(this->width));
+      Nan::Set(obj, New("height").ToLocalChecked(), New(this->height));
+      Nan::Set(obj, New("size").ToLocalChecked(), New(this->dstLength));
+      Nan::Set(obj, New("format").ToLocalChecked(), New(this->format));
 
       Local<Value> argv[] = {
         Null(),
         obj
       };
 
-      callback->Call(2, argv);
+      callback->Call(2, argv, async_resource);
     }
 
   private:
@@ -162,7 +162,7 @@ void decompressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   unsigned char* srcData = NULL;
   uint32_t srcLength = 0;
   Local<Object> options;
-  Local<Value> formatObject;
+  Nan::MaybeLocal<Value> formatObject;
   uint32_t format = NJT_DEFAULT_FORMAT;
   Nan::Maybe<uint32_t> tmpMaybe = Nan::Nothing<uint32_t>();
 
@@ -212,10 +212,10 @@ void decompressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
   // Options are optional
   if (options->IsObject()) {
     // Format of output buffer
-    formatObject = options->Get(New("format").ToLocalChecked());
-    if (!formatObject->IsUndefined())
+    formatObject = Get(options, New("format").ToLocalChecked());
+    if (!formatObject.IsEmpty() && !formatObject.ToLocalChecked()->IsUndefined())
     {
-      tmpMaybe = Nan::To<uint32_t>(formatObject);
+      tmpMaybe = Nan::To<uint32_t>(formatObject.ToLocalChecked());
       if (tmpMaybe.IsNothing())
       {
         _throw("Invalid format");
@@ -251,11 +251,11 @@ void decompressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
       dstObject = NewBuffer((char*)dstData, dstLength).ToLocalChecked();
     }
 
-    obj->Set(New("data").ToLocalChecked(), dstObject);
-    obj->Set(New("width").ToLocalChecked(), New(width));
-    obj->Set(New("height").ToLocalChecked(), New(height));
-    obj->Set(New("size").ToLocalChecked(), New(dstLength));
-    obj->Set(New("format").ToLocalChecked(), New(format));
+    Nan::Set(obj, New("data").ToLocalChecked(), dstObject);
+    Nan::Set(obj, New("width").ToLocalChecked(), New(width));
+    Nan::Set(obj, New("height").ToLocalChecked(), New(height));
+    Nan::Set(obj, New("size").ToLocalChecked(), New(dstLength));
+    Nan::Set(obj, New("format").ToLocalChecked(), New(format));
 
     info.GetReturnValue().Set(obj);
     return;
@@ -271,7 +271,7 @@ void decompressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
       Local<Value> argv[] = {
         New(errStr).ToLocalChecked()
       };
-      callback->Call(1, argv);
+      callback->Call(1, argv, nullptr);
     }
     return;
   }
