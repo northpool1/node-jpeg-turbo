@@ -5,6 +5,13 @@ cmake_minimum_required(VERSION 3.1)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+if(MSVC)
+  # Ensure jpeg-turbo is built without needing vc runtimes
+  set(WITH_CRT_DLL FALSE)
+  set(CMAKE_CXX_FLAGS_RELEASE "/MT")
+  set(CMAKE_CXX_FLAGS_DEBUG "/MTd")
+endif()
+
 include_directories(${CMAKE_JS_INC})
 
 set(HEADER_FILES
