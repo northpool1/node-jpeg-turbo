@@ -30,21 +30,28 @@ export interface EncodeOptions extends BufferSizeOptions {
   quality?: number;
 }
 
+export interface CompressReturn {
+  data: Buffer;
+  size: number;
+}
+
 export function bufferSize(options: BufferSizeOptions): number;
-export function compressSync(raw: Buffer, options: EncodeOptions): Buffer;
-export function compressSync(raw: Buffer, preallocatedOut: Buffer, options: EncodeOptions): Buffer;
-export function compress(raw: Buffer, options: EncodeOptions, callback: (err: any, image: Buffer) => void): void;
+export function compressSync(raw: Buffer, options: EncodeOptions): CompressReturn;
+export function compressSync(raw: Buffer, preallocatedOut: Buffer, options: EncodeOptions): CompressReturn;
+export function compress(raw: Buffer, options: EncodeOptions, callback: (err: any, image: CompressReturn) => void): void;
 export function compress(
   raw: Buffer,
   preallocatedOut: Buffer,
   options: EncodeOptions,
-  callback: (err: any, image: Buffer) => void
+  callback: (err: any, image: CompressReturn) => void
 ): void;
 
 export interface DecodeOptions {
   format: Format;
 }
-export interface DecodeResult {
+
+export type DecodeResult = DecompressReturn
+export interface DecompressReturn {
   data: Buffer;
   width: number;
   height: number;
@@ -52,18 +59,18 @@ export interface DecodeResult {
   format: any;
 }
 
-export function decompressSync(image: Buffer, preallocatedOut: Buffer, options?: DecodeOptions): DecodeResult;
-export function decompressSync(image: Buffer, options?: DecodeOptions): DecodeResult;
+export function decompressSync(image: Buffer, preallocatedOut: Buffer, options?: DecodeOptions): DecompressReturn;
+export function decompressSync(image: Buffer, options?: DecodeOptions): DecompressReturn;
 
 export function decompress(
   image: Buffer,
   preallocatedOut: Buffer,
   options: DecodeOptions,
-  callback: (err: any, image: Buffer) => void
-): DecodeResult;
+  callback: (err: any, image: DecompressReturn) => void
+): void;
 export function decompress(
   image: Buffer,
   options: DecodeOptions,
-  callback: (err: any, image: Buffer) => void
-): DecodeResult;
-export function decompress(image: Buffer, callback: (err: any, image: Buffer) => void): DecodeResult;
+  callback: (err: any, image: DecompressReturn) => void
+): void;
+export function decompress(image: Buffer, callback: (err: any, image: DecompressReturn) => void): void;
