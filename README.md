@@ -1,13 +1,13 @@
 # @julusian/jpeg-turbo
 
-[![Build Status](https://travis-ci.org/julusian/node-jpeg-turbo.svg?branch=master)](https://travis-ci.org/julusian/node-jpeg-turbo)
+![Node CI](https://github.com/Julusian/node-jpeg-turbo/workflows/Node%20CI/badge.svg)
 [![npm](https://img.shields.io/npm/v/@julusian/jpeg-turbo.svg)](https://www.npmjs.com/package/@julusian/jpeg-turbo)
 [![npm](https://img.shields.io/npm/dm/@julusian/jpeg-turbo.svg)](https://www.npmjs.com/package/@julusian/jpeg-turbo)
 [![npm](https://img.shields.io/npm/l/@julusian/jpeg-turbo.svg)](LICENSE)
 
-This is a fork of [jpeg-turbo](https://github.com/sorccu/node-jpeg-turbo) with the intention of getting the changes merged upstream
+This is a fork of [jpeg-turbo](https://github.com/sorccu/node-jpeg-turbo) with the intention of being maintained and bringing support for new versions of node
 
-**node-jpeg-turbo** provides minimal [libjpeg-turbo](http://libjpeg-turbo.virtualgl.org/) bindings for [Node.js](https://nodejs.org/). It is very, very fast compared to other alternatives, such as [node-imagemagick-native](https://github.com/mash/node-imagemagick-native) or [jpeg-js](https://github.com/eugeneware/jpeg-js).
+**node-jpeg-turbo** provides minimal [libjpeg-turbo](http://libjpeg-turbo.org/) bindings for [Node.js](https://nodejs.org/). It is very, very fast compared to other alternatives, such as [node-imagemagick-native](https://github.com/mash/node-imagemagick-native) or [jpeg-js](https://github.com/eugeneware/jpeg-js).
 
 Please ask if you need more methods exposed.
 
@@ -88,13 +88,13 @@ Make sure you've got the [requirements](#requirements) installed first.
 Using [yarn](https://yarnpkg.com/):
 
 ```sh
-yarn add jpeg-turbo
+yarn add @julusian/jpeg-turbo
 ```
 
 Using [npm](https://www.npmjs.com/):
 
 ```sh
-npm install --save jpeg-turbo
+npm install --save @julusian/jpeg-turbo
 ```
 
 ## API
@@ -111,7 +111,7 @@ If you'd like to preallocate a `Buffer` for `jpg.compressSync()`, use this metho
 
 ```js
 var fs = require('fs')
-var jpg = require('jpeg-turbo')
+var jpg = require('@julusian/jpeg-turbo')
 
 var raw = fs.readFileSync('raw.rgba')
 
@@ -147,7 +147,7 @@ For efficiency reasons you may choose to encode into a preallocated `Buffer`. Wh
 
 ```js
 var fs = require('fs')
-var jpg = require('jpeg-turbo')
+var jpg = require('@julusian/jpeg-turbo')
 
 var raw = fs.readFileSync('raw.rgba')
 
@@ -183,7 +183,7 @@ Decompresses (i.e. decodes) the JPG image into raw pixel data.
 
 ```js
 var fs = require('fs')
-var jpg = require('jpeg-turbo')
+var jpg = require('@julusian/jpeg-turbo')
 
 var image = fs.readFileSync('image.jpg')
 
@@ -205,4 +205,4 @@ var decoded = jpg.decompressSync(image, options)
 
 See [LICENSE](LICENSE).
 
-Copyright © Simo Kinnunen. All Rights Reserved.
+Copyright © Julian Waller. All Rights Reserved.
