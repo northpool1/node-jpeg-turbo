@@ -1,287 +1,255 @@
-#include "exports.h"
-using namespace Nan;
-using namespace v8;
-using namespace node;
+#include "compress.h"
 
-static char errStr[NJT_MSG_LENGTH_MAX] = "No error";
-#define _throw(m) {snprintf(errStr, NJT_MSG_LENGTH_MAX, "%s", m); retval=-1; goto bailout;}
-
-int decompress(unsigned char* srcData, uint32_t srcLength, uint32_t format, int* width, int* height, uint32_t* dstLength, unsigned char** dstData, uint32_t dstBufferLength) {
-  int retval = 0;
-  int err;
-  tjhandle handle = NULL;
+struct DecompressProps
+{
+  unsigned char *srcData;
+  uint32_t srcLength;
+  uint32_t format;
   int bpp;
-
-  // Figure out bpp from format (needed to calculate output buffer size)
-  switch (format) {
-    case FORMAT_GRAY:
-      bpp = 1;
-      break;
-    case FORMAT_RGB:
-    case FORMAT_BGR:
-      bpp = 3;
-      break;
-    case FORMAT_RGBX:
-    case FORMAT_BGRX:
-    case FORMAT_XRGB:
-    case FORMAT_XBGR:
-    case FORMAT_RGBA:
-    case FORMAT_BGRA:
-    case FORMAT_ABGR:
-    case FORMAT_ARGB:
-      bpp = 4;
-      break;
-    default:
-      _throw("Invalid output format");
-  }
-
-  handle = tjInitDecompress();
-  if (handle == NULL) {
-    _throw(tjGetErrorStr());
-  }
-
-  err = tjDecompressHeader(handle, srcData, srcLength, width, height);
-
-  if (err != 0) {
-    _throw(tjGetErrorStr());
-  }
-
-  *dstLength = *width * *height * bpp;
-
-  if (dstBufferLength > 0) {
-    if (dstBufferLength < *dstLength) {
-      _throw("Insufficient output buffer");
-    }
-  }
-  else {
-    *dstData = (unsigned char*)malloc(*dstLength);
-  }
-
-  err = tjDecompress2(handle, srcData, srcLength, *dstData, *width, 0, *height, format, TJFLAG_FASTDCT);
-
-  if(err != 0) {
-    _throw(tjGetErrorStr());
-  }
-
-
-  bailout:
-  if (handle != NULL) {
-    err = 0;
-    err = tjDestroy(handle);
-    // If we already have an error retval wont be 0 so in that case we don't want to overwrite error message
-    // Also cant use _throw here because infinite-loop
-    if (err != 0 && retval == 0) {
-      snprintf(errStr, NJT_MSG_LENGTH_MAX, "%s", tjGetErrorStr());
-    }
-  }
-
-  return retval;
-}
-
-class DecompressWorker : public AsyncWorker {
-  public:
-    DecompressWorker(Callback *callback, unsigned char* srcData, uint32_t srcLength, uint32_t format, Local<Object> &dstObject, unsigned char* dstData, uint32_t dstBufferLength) :
-      AsyncWorker(callback),
-      srcData(srcData),
-      srcLength(srcLength),
-      format(format),
-      dstData(dstData),
-      dstBufferLength(dstBufferLength),
-      width(0),
-      height(0),
-      dstLength(0) {
-        if (dstBufferLength > 0) {
-          SaveToPersistent("dstObject", dstObject);
-        }
-      }
-
-    ~DecompressWorker() {}
-
-    void Execute () {
-      int err;
-
-      err = decompress(
-          this->srcData,
-          this->srcLength,
-          this->format,
-          &this->width,
-          &this->height,
-          &this->dstLength,
-          &this->dstData,
-          this->dstBufferLength);
-
-      if(err != 0) {
-        SetErrorMessage(errStr);
-      }
-    }
-
-    void HandleOKCallback () {
-      Local<Object> obj = New<Object>();
-      Local<Object> dstObject;
-
-      if (this->dstBufferLength > 0) {
-        dstObject = GetFromPersistent("dstObject").As<Object>();
-      }
-      else {
-        dstObject = NewBuffer((char*)this->dstData, this->dstLength).ToLocalChecked();
-      }
-
-      Nan::Set(obj, New("data").ToLocalChecked(), dstObject);
-      Nan::Set(obj, New("width").ToLocalChecked(), New(this->width));
-      Nan::Set(obj, New("height").ToLocalChecked(), New(this->height));
-      Nan::Set(obj, New("size").ToLocalChecked(), New(this->dstLength));
-      Nan::Set(obj, New("format").ToLocalChecked(), New(this->format));
-
-      Local<Value> argv[] = {
-        Null(),
-        obj
-      };
-
-      callback->Call(2, argv, async_resource);
-    }
-
-  private:
-    unsigned char* srcData;
-    uint32_t srcLength;
-    uint32_t format;
-
-    unsigned char* dstData;
-    uint32_t dstBufferLength;
-    int width;
-    int height;
-    uint32_t dstLength;
+  int resWidth;
+  int resHeight;
+  unsigned long resSize;
+  unsigned char *resData;
 };
 
-void decompressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
-  int retval = 0;
-  int cursor = 0;
-
-  // Input
-  Callback *callback = NULL;
-  Local<Object> srcObject;
-  unsigned char* srcData = NULL;
-  uint32_t srcLength = 0;
-  Local<Object> options;
-  Nan::MaybeLocal<Value> formatObject;
-  uint32_t format = NJT_DEFAULT_FORMAT;
-  Nan::Maybe<uint32_t> tmpMaybe = Nan::Nothing<uint32_t>();
-
-  // Output
-  Local<Object> dstObject;
-  uint32_t dstBufferLength = 0;
-  unsigned char* dstData = NULL;
-  int width;
-  int height;
-  uint32_t dstLength;
-
-  // Try to find callback here, so if we want to throw something we can use callback's err
-  if (async) {
-    if (info[info.Length() - 1]->IsFunction()) {
-      callback = new Callback(info[info.Length() - 1].As<Function>());
-    }
-    else {
-      _throw("Missing callback");
-    }
+std::string DoDecompress(DecompressProps &props)
+{
+  tjhandle handle = tjInitDecompress();
+  if (handle == nullptr)
+  {
+    return tjGetErrorStr();
   }
 
-  if ((async && info.Length() < 2) || (!async && info.Length() < 1)) {
-    _throw("Too few arguments");
+  int err = tjDecompressHeader(handle, props.srcData, props.srcLength, &props.resWidth, &props.resHeight);
+  if (err != 0)
+  {
+    tjDestroy(handle);
+    return tjGetErrorStr();
   }
 
-  // Input buffer
-  srcObject = info[cursor++].As<Object>();
-  if (!Buffer::HasInstance(srcObject)) {
-    _throw("Invalid source buffer");
-  }
-
-  srcData = (unsigned char*) Buffer::Data(srcObject);
-  srcLength = Buffer::Length(srcObject);
-
-  // Options
-  options = info[cursor++].As<Object>();
-
-  // Check if options we just got is actually the destination buffer
-  // If it is, pull new object from info and set that as options
-  if (Buffer::HasInstance(options) && info.Length() > cursor) {
-    dstObject = options;
-    options = info[cursor++].As<Object>();
-    dstBufferLength = Buffer::Length(dstObject);
-    dstData = (unsigned char*) Buffer::Data(dstObject);
-  }
-
-  // Options are optional
-  if (options->IsObject()) {
-    // Format of output buffer
-    formatObject = Get(options, New("format").ToLocalChecked());
-    if (!formatObject.IsEmpty() && !formatObject.ToLocalChecked()->IsUndefined())
+  uint32_t oldSize = props.resSize;
+  props.resSize = props.resWidth * props.resHeight * props.bpp;
+  if (props.resData != nullptr)
+  {
+    if (oldSize < props.resSize)
     {
-      tmpMaybe = Nan::To<uint32_t>(formatObject.ToLocalChecked());
-      if (tmpMaybe.IsNothing())
-      {
-        _throw("Invalid format");
-      }
-      format = tmpMaybe.FromJust();
+      tjDestroy(handle);
+      return "Insufficient output buffer";
     }
   }
-
-  // Do either async or sync decompress
-  if (async) {
-    AsyncQueueWorker(new DecompressWorker(callback, srcData, srcLength, format, dstObject, dstData, dstBufferLength));
-    return;
-  }
-  else {
-    retval = decompress(
-        srcData,
-        srcLength,
-        format,
-        &width,
-        &height,
-        &dstLength,
-        &dstData,
-        dstBufferLength);
-
-
-    if(retval != 0) {
-      // decompress will set the errStr
-      goto bailout;
-    }
-    Local<Object> obj = New<Object>();
-
-    if (dstBufferLength == 0) {
-      dstObject = NewBuffer((char*)dstData, dstLength).ToLocalChecked();
-    }
-
-    Nan::Set(obj, New("data").ToLocalChecked(), dstObject);
-    Nan::Set(obj, New("width").ToLocalChecked(), New(width));
-    Nan::Set(obj, New("height").ToLocalChecked(), New(height));
-    Nan::Set(obj, New("size").ToLocalChecked(), New(dstLength));
-    Nan::Set(obj, New("format").ToLocalChecked(), New(format));
-
-    info.GetReturnValue().Set(obj);
-    return;
+  else
+  {
+    props.resData = (unsigned char *)malloc(props.resSize);
   }
 
-  // If we have error throw error or call callback with error
-  bailout:
-  if (retval != 0) {
-    if (NULL == callback) {
-      ThrowError(TypeError(errStr));
-    }
-    else {
-      Local<Value> argv[] = {
-        New(errStr).ToLocalChecked()
-      };
-      callback->Call(1, argv, nullptr);
-    }
-    return;
+  err = tjDecompress2(handle, props.srcData, props.srcLength, props.resData, props.resWidth, 0, props.resHeight, props.format, TJFLAG_FASTDCT);
+  if (err != 0)
+  {
+    tjDestroy(handle);
+    return tjGetErrorStr();
   }
 
+  err = tjDestroy(handle);
+  if (err != 0)
+  {
+    return tjGetErrorStr();
+  }
+
+  if (props.resData == nullptr)
+  {
+    return "No output data";
+  }
+
+  return "";
 }
 
-NAN_METHOD(DecompressSync) {
-  decompressParse(info, false);
+Napi::Object DecompressResult(const Napi::Env &env, const Napi::Buffer<unsigned char> dstBuffer, const DecompressProps &props)
+{
+  Napi::Buffer<unsigned char> resBuffer = dstBuffer;
+
+  if (resBuffer.IsEmpty())
+  {
+    resBuffer = Napi::Buffer<unsigned char>::New(env, props.resData, props.resSize);
+  }
+
+  Napi::Object res = Napi::Object::New(env);
+  res.Set("data", resBuffer);
+  res.Set("size", props.resSize);
+  res.Set("width", props.resWidth);
+  res.Set("height", props.resHeight);
+  res.Set("format", props.format);
+
+  return res;
 }
 
-NAN_METHOD(Decompress) {
-  decompressParse(info, true);
+class DecompressWorker : public Napi::AsyncWorker
+{
+public:
+  DecompressWorker(
+      Napi::Env &env,
+      Napi::Buffer<unsigned char> &srcBuffer,
+      Napi::Buffer<unsigned char> &dstBuffer,
+      DecompressProps &props)
+      : AsyncWorker(env),
+        deferred(Napi::Promise::Deferred::New(env)),
+        srcBuffer(Napi::Reference<Napi::Buffer<unsigned char>>::New(srcBuffer, 1)),
+        dstBuffer(Napi::Reference<Napi::Buffer<unsigned char>>::New(dstBuffer, 1)),
+        props(props)
+  {
+  }
+
+  ~DecompressWorker()
+  {
+    this->srcBuffer.Reset();
+    this->dstBuffer.Reset();
+  }
+
+  void Execute()
+  {
+    std::string err = DoDecompress(this->props);
+    if (!err.empty())
+    {
+      SetError(err);
+    }
+  }
+
+  void OnOK()
+  {
+    deferred.Resolve(DecompressResult(Env(), this->dstBuffer.Value(), this->props));
+  }
+
+  void OnError(Napi::Error const &error)
+  {
+    deferred.Reject(error.Value());
+  }
+
+  Napi::Promise GetPromise() const
+  {
+    return deferred.Promise();
+  }
+
+private:
+  Napi::Promise::Deferred deferred;
+  Napi::Reference<Napi::Buffer<unsigned char>> srcBuffer;
+  Napi::Reference<Napi::Buffer<unsigned char>> dstBuffer;
+  DecompressProps props;
+};
+
+Napi::Value DecompressInner(const Napi::CallbackInfo &info, bool async)
+{
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 1)
+  {
+    Napi::TypeError::New(env, "Not enough arguments")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  if (!info[0].IsBuffer())
+  {
+    Napi::TypeError::New(env, "Invalid source buffer")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  Napi::Buffer<unsigned char> srcBuffer = info[0].As<Napi::Buffer<unsigned char>>();
+
+  unsigned int offset = 0;
+  Napi::Buffer<unsigned char> dstBuffer;
+  if (info[1].IsBuffer())
+  {
+    dstBuffer = info[1].As<Napi::Buffer<unsigned char>>();
+    offset++;
+    if (dstBuffer.Length() == 0)
+    {
+      Napi::TypeError::New(env, "Invalid destination buffer")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+  }
+
+  DecompressProps props = {};
+  props.srcData = srcBuffer.Data();
+  props.srcLength = srcBuffer.Length();
+
+  if (info.Length() >= offset + 2)
+  {
+    if (!info[offset + 1].IsObject())
+    {
+      Napi::TypeError::New(env, "Invalid options").ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    Napi::Object options = info[offset + 1].As<Napi::Object>();
+
+    Napi::Value tmpFormat = options.Get("format");
+    if (!tmpFormat.IsNumber())
+    {
+      Napi::TypeError::New(env, "Invalid format").ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    props.format = tmpFormat.As<Napi::Number>().Uint32Value();
+  }
+
+  // Figure out bpp from format (needed to calculate output buffer size)
+  props.bpp = 0;
+  switch (props.format)
+  {
+  case TJPF_GRAY:
+    props.bpp = 1;
+    break;
+  case TJPF_RGB:
+  case TJPF_BGR:
+    props.bpp = 3;
+    break;
+  case TJPF_RGBX:
+  case TJPF_BGRX:
+  case TJPF_XRGB:
+  case TJPF_XBGR:
+  case TJPF_RGBA:
+  case TJPF_BGRA:
+  case TJPF_ABGR:
+  case TJPF_ARGB:
+    props.bpp = 4;
+    break;
+  default:
+    Napi::TypeError::New(env, "Invalid output format").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  props.resSize = 0;
+  props.resData = nullptr;
+  if (!dstBuffer.IsEmpty())
+  {
+    props.resSize = dstBuffer.Length();
+    props.resData = dstBuffer.Data();
+  }
+
+  if (async)
+  {
+    DecompressWorker *wk = new DecompressWorker(env, srcBuffer, dstBuffer, props);
+    wk->Queue();
+    return wk->GetPromise();
+  }
+  else
+  {
+    std::string errStr = DoDecompress(props);
+    if (!errStr.empty())
+    {
+      Napi::TypeError::New(env, errStr).ThrowAsJavaScriptException();
+      return env.Null();
+    }
+
+    return DecompressResult(env, dstBuffer, props);
+  }
+  return env.Null();
+}
+
+Napi::Value DecompressAsync(const Napi::CallbackInfo &info)
+{
+  return DecompressInner(info, true);
+}
+
+Napi::Value DecompressSync(const Napi::CallbackInfo &info)
+{
+  return DecompressInner(info, false);
 }

@@ -1,373 +1,297 @@
-#include "exports.h"
-using namespace Nan;
-using namespace v8;
-using namespace node;
+#include "compress.h"
 
-static char errStr[NJT_MSG_LENGTH_MAX] = "No error";
-#define _throw(m) {snprintf(errStr, NJT_MSG_LENGTH_MAX, "%s", m); retval=-1; goto bailout;}
-
-void compressBufferFreeCallback(char *data, void *hint) {
-  tjFree((unsigned char*) data);
-}
-
-int compress(unsigned char* srcData, uint32_t format, uint32_t width, uint32_t stride, uint32_t height, uint32_t jpegSubsamp, int quality, int bpp, unsigned long* jpegSize, unsigned char** dstData, uint32_t dstBufferLength) {
-  int retval = 0;
-  int err;
-
-  tjhandle handle = NULL;
-  int flags = TJFLAG_FASTDCT;
-  uint32_t dstLength = 0;
-
-  switch (jpegSubsamp) {
-    case SAMP_444:
-    case SAMP_422:
-    case SAMP_420:
-    case SAMP_GRAY:
-    case SAMP_440:
-      break;
-    default:
-      _throw("Invalid subsampling method");
-  }
-
-  // Set up buffers if required
-  dstLength = tjBufSize(width, height, jpegSubsamp);
-  if (dstBufferLength > 0) {
-    if (dstLength > dstBufferLength) {
-      _throw("Pontentially insufficient output buffer");
-    }
-    flags |= TJFLAG_NOREALLOC;
-  }
-
-  handle = tjInitCompress();
-  if (handle == NULL) {
-    _throw(tjGetErrorStr());
-  }
-
-  err = tjCompress2(handle, srcData, width, stride * bpp, height, format, dstData, jpegSize, jpegSubsamp, quality, flags);
-
-  if (err != 0) {
-    _throw(tjGetErrorStr());
-  }
-
-  bailout:
-  if (handle != NULL) {
-    err = 0;
-    err = tjDestroy(handle);
-    // If we already have an error retval wont be 0 so in that case we don't want to overwrite error message
-    // Also cant use _throw here because infinite-loop
-    if (err != 0 && retval == 0) {
-      snprintf(errStr, NJT_MSG_LENGTH_MAX, "%s", tjGetErrorStr());
-    }
-  }
-
-  return retval;
-}
-
-class CompressWorker : public AsyncWorker {
-  public:
-    CompressWorker(Callback *callback, unsigned char* srcData, uint32_t format, uint32_t width, uint32_t stride, uint32_t height, uint32_t jpegSubsamp, int quality, int bpp, Local<Object> &dstObject, unsigned char* dstData, uint32_t dstBufferLength) :
-      AsyncWorker(callback),
-      srcData(srcData),
-      format(format),
-      width(width),
-      stride(stride),
-      height(height),
-      jpegSubsamp(jpegSubsamp),
-      quality(quality),
-      bpp(bpp),
-      jpegSize(0),
-      dstData(dstData),
-      dstBufferLength(dstBufferLength) {
-        if (dstBufferLength > 0) {
-          SaveToPersistent("dstObject", dstObject);
-        }
-      }
-    ~CompressWorker() {}
-
-    void Execute () {
-      int err;
-
-      err = compress(
-          this->srcData,
-          this->format,
-          this->width,
-          this->stride,
-          this->height,
-          this->jpegSubsamp,
-          this->quality,
-          this->bpp,
-          &this->jpegSize,
-          &this->dstData,
-          this->dstBufferLength);
-
-      if(err != 0) {
-        SetErrorMessage(errStr);
-      }
-    }
-
-    void HandleOKCallback () {
-      Local<Object> obj = New<Object>();
-      Local<Object> dstObject;
-
-      if (this->dstBufferLength > 0) {
-        dstObject = GetFromPersistent("dstObject").As<Object>();
-      }
-      else {
-        dstObject = NewBuffer((char*)this->dstData, this->jpegSize, compressBufferFreeCallback, NULL).ToLocalChecked();
-      }
-
-      Nan::Set(obj, New("data").ToLocalChecked(), dstObject);
-      Nan::Set(obj, New("size").ToLocalChecked(), New((uint32_t) this->jpegSize));
-
-      v8::Local<v8::Value> argv[] = {
-        Nan::Null(),
-        obj
-      };
-
-      callback->Call(2, argv, async_resource);
-    }
-
-  private:
-    unsigned char* srcData;
-    uint32_t format;
-    uint32_t width;
-    uint32_t stride;
-    uint32_t height;
-    uint32_t jpegSubsamp;
-    int quality;
-    int bpp;
-    unsigned long jpegSize;
-    unsigned char* dstData;
-    uint32_t dstBufferLength;
+struct CompressProps
+{
+  unsigned char *srcData;
+  uint32_t format;
+  uint32_t width;
+  uint32_t stride;
+  uint32_t height;
+  uint32_t subsampling;
+  int quality;
+  int bpp;
+  int flags;
+  unsigned long resSize;
+  unsigned char *resData;
 };
 
-void compressParse(const Nan::FunctionCallbackInfo<Value>& info, bool async) {
-  int retval = 0;
-  int cursor = 0;
-
-  // Input
-  Callback *callback = NULL;
-  Local<Object> srcObject;
-  uint32_t srcBufferLength = 0;
-  unsigned char* srcData = NULL;
-  Local<Object> dstObject;
-  uint32_t dstBufferLength = 0;
-  unsigned char* dstData = NULL;
-  Local<Object> options;
-  Nan::MaybeLocal<Value> formatObject;
-  uint32_t format = 0;
-  Nan::MaybeLocal<Value> sampObject;
-  uint32_t jpegSubsamp = NJT_DEFAULT_SUBSAMPLING;
-  Nan::MaybeLocal<Value> widthObject;
-  uint32_t width = 0;
-  Nan::MaybeLocal<Value> heightObject;
-  uint32_t height = 0;
-  Nan::MaybeLocal<Value> strideObject;
-  uint32_t stride;
-  Nan::MaybeLocal<Value> qualityObject;
-  int quality = NJT_DEFAULT_QUALITY;
-  int bpp = 0;
-  Nan::Maybe<uint32_t> tmpMaybe = Nan::Nothing<uint32_t>();
-
-  // Output
-  unsigned long jpegSize = 0;
-
-  // Try to find callback here, so if we want to throw something we can use callback's err
-  if (async) {
-    if (info[info.Length() - 1]->IsFunction()) {
-      callback = new Callback(info[info.Length() - 1].As<Function>());
-    }
-    else {
-      _throw("Missing callback");
-    }
-  }
-
-  if ((async && info.Length() < 3) || (!async && info.Length() < 2)) {
-    _throw("Too few arguments");
-  }
-
-  // Input buffer
-  srcObject = info[cursor++].As<Object>();
-  if (!Buffer::HasInstance(srcObject)) {
-    _throw("Invalid source buffer");
-  }
-  srcBufferLength = Buffer::Length(srcObject);
-  srcData = (unsigned char*) Buffer::Data(srcObject);
-
-  // Options
-  options = info[cursor++].As<Object>();
-
-  // Check if options we just got is actually the destination buffer
-  // If it is, pull new object from info and set that as options
-  if (Buffer::HasInstance(options) && info.Length() > cursor) {
-    dstObject = options;
-    options = info[cursor++].As<Object>();
-    dstBufferLength = Buffer::Length(dstObject);
-    dstData = (unsigned char*) Buffer::Data(dstObject);
-  }
-
-  if (!options->IsObject()) {
-    _throw("Options must be an object");
-  }
-
-  // Format of input buffer
-  formatObject = Get(options, New("format").ToLocalChecked());
-  if (formatObject.IsEmpty() || formatObject.ToLocalChecked()->IsUndefined()) {
-    _throw("Missing format");
-  }
-  tmpMaybe = Nan::To<uint32_t>(formatObject.ToLocalChecked());
-  if (tmpMaybe.IsNothing())
+std::string DoCompress(CompressProps &props)
+{
+  tjhandle handle = tjInitCompress();
+  if (handle == nullptr)
   {
-    _throw("Invalid input format");
+    return tjGetErrorStr();
   }
-  format = tmpMaybe.FromJust();
 
-  // Subsampling
-  sampObject = Get(options, New("subsampling").ToLocalChecked());
-  if (!sampObject.IsEmpty() && !sampObject.ToLocalChecked()->IsUndefined())
+  int err = tjCompress2(handle,
+                        props.srcData,
+                        props.width,
+                        props.stride * props.bpp,
+                        props.height,
+                        props.format,
+                        &props.resData,
+                        &props.resSize,
+                        props.subsampling,
+                        props.quality,
+                        props.flags);
+  if (err != 0)
   {
-    tmpMaybe = Nan::To<uint32_t>(sampObject.ToLocalChecked());
-    if (tmpMaybe.IsNothing())
+    tjDestroy(handle);
+    return tjGetErrorStr();
+  }
+
+  err = tjDestroy(handle);
+  if (err != 0)
+  {
+    return tjGetErrorStr();
+  }
+
+  if (props.resData == nullptr)
+  {
+    return "No output data";
+  }
+
+  return "";
+}
+
+void compressBufferFreeCallback(Napi::Env env, unsigned char *data)
+{
+  tjFree(data);
+}
+
+Napi::Object CompressResult(const Napi::Env &env, const Napi::Buffer<unsigned char> dstBuffer, const CompressProps &props)
+{
+  Napi::Buffer<unsigned char> resBuffer = dstBuffer;
+
+  if (resBuffer.IsEmpty())
+  {
+    resBuffer = Napi::Buffer<unsigned char>::New(env, props.resData, props.resSize, compressBufferFreeCallback);
+  }
+
+  Napi::Object res = Napi::Object::New(env);
+  res.Set("data", resBuffer);
+  res.Set("size", props.resSize);
+
+  return res;
+}
+
+class CompressWorker : public Napi::AsyncWorker
+{
+public:
+  CompressWorker(
+      Napi::Env &env,
+      Napi::Buffer<unsigned char> &srcBuffer,
+      Napi::Buffer<unsigned char> &dstBuffer,
+      CompressProps &props)
+      : AsyncWorker(env),
+        deferred(Napi::Promise::Deferred::New(env)),
+        srcBuffer(Napi::Reference<Napi::Buffer<unsigned char>>::New(srcBuffer, 1)),
+        dstBuffer(Napi::Reference<Napi::Buffer<unsigned char>>::New(dstBuffer, 1)),
+        props(props)
+  {
+  }
+
+  ~CompressWorker()
+  {
+    this->srcBuffer.Reset();
+    this->dstBuffer.Reset();
+  }
+
+  void Execute()
+  {
+    std::string err = DoCompress(this->props);
+    if (!err.empty())
     {
-      _throw("Invalid subsampling method");
+      SetError(err);
     }
-    jpegSubsamp = tmpMaybe.FromJust();
   }
 
-  // Width
-  widthObject = Get(options, New("width").ToLocalChecked());
-  if (widthObject.IsEmpty() || widthObject.ToLocalChecked()->IsUndefined())
+  void OnOK()
   {
-    _throw("Missing width");
+    deferred.Resolve(CompressResult(Env(), this->dstBuffer.Value(), this->props));
   }
-  tmpMaybe = Nan::To<uint32_t>(widthObject.ToLocalChecked());
-  if (tmpMaybe.IsNothing())
-  {
-    _throw("Invalid width value");
-  }
-  width = tmpMaybe.FromJust();
 
-  // Height
-  heightObject = Get(options, New("height").ToLocalChecked());
-  if (heightObject.IsEmpty() || heightObject.ToLocalChecked()->IsUndefined()) {
-    _throw("Missing height");
-  }
-  tmpMaybe = Nan::To<uint32_t>(heightObject.ToLocalChecked());
-  if (tmpMaybe.IsNothing())
+  void OnError(Napi::Error const &error)
   {
-    _throw("Invalid height value");
+    deferred.Reject(error.Value());
   }
-  height = tmpMaybe.FromJust();
 
-  // Stride
-  strideObject = Get(options, New("stride").ToLocalChecked());
-  if (!strideObject.IsEmpty() && !strideObject.ToLocalChecked()->IsUndefined())
+  Napi::Promise GetPromise() const
   {
-    tmpMaybe = Nan::To<uint32_t>(strideObject.ToLocalChecked());
-    if (tmpMaybe.IsNothing())
+    return deferred.Promise();
+  }
+
+private:
+  Napi::Promise::Deferred deferred;
+  Napi::Reference<Napi::Buffer<unsigned char>> srcBuffer;
+  Napi::Reference<Napi::Buffer<unsigned char>> dstBuffer;
+  CompressProps props;
+};
+
+Napi::Value CompressInner(const Napi::CallbackInfo &info, bool async)
+{
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 2)
+  {
+    Napi::TypeError::New(env, "Not enough arguments")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  if (!info[0].IsBuffer())
+  {
+    Napi::TypeError::New(env, "Invalid source buffer")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  Napi::Buffer<unsigned char> srcBuffer = info[0].As<Napi::Buffer<unsigned char>>();
+
+  unsigned int offset = 0;
+  Napi::Buffer<unsigned char> dstBuffer;
+  if (info[1].IsBuffer())
+  {
+    dstBuffer = info[1].As<Napi::Buffer<unsigned char>>();
+    offset++;
+    if (dstBuffer.Length() == 0)
     {
-      _throw("Invalid stride value");
+      Napi::TypeError::New(env, "Invalid destination buffer")
+          .ThrowAsJavaScriptException();
+      return env.Null();
     }
-    stride = tmpMaybe.FromJust();
-  }
-  else {
-    stride = width;
   }
 
-  // Quality
-  qualityObject = Get(options, New("quality").ToLocalChecked());
-  if (!qualityObject.IsEmpty() && !qualityObject.ToLocalChecked()->IsUndefined())
+  if (info.Length() < offset + 2 || !info[offset + 1].IsObject())
   {
-    tmpMaybe = Nan::To<uint32_t>(qualityObject.ToLocalChecked());
-    if (tmpMaybe.IsNothing() || tmpMaybe.FromJust() > 100u)
-    {
-      _throw("Invalid quality value");
-    }
-    quality = tmpMaybe.FromJust();
+    Napi::TypeError::New(env, "Invalid options").ThrowAsJavaScriptException();
+    return env.Null();
   }
+  Napi::Object options = info[offset + 1].As<Napi::Object>();
+
+  BufferSizeOptions parsedOptions = ParseBufferSizeOptions(env, options);
+  if (!parsedOptions.valid)
+  {
+    return env.Null();
+  }
+
+  CompressProps props = {};
+  props.srcData = srcBuffer.Data();
+  props.width = parsedOptions.width;
+  props.height = parsedOptions.height;
+  props.subsampling = parsedOptions.subsampling;
+
+  Napi::Value tmpFormat = options.Get("format");
+  if (!tmpFormat.IsNumber())
+  {
+    Napi::TypeError::New(env, "Invalid format").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  props.format = tmpFormat.As<Napi::Number>().Uint32Value();
 
   // Figure out bpp from format (needed to calculate output buffer size)
-  switch (format) {
-    case FORMAT_GRAY:
-      bpp = 1;
-      break;
-    case FORMAT_RGB:
-    case FORMAT_BGR:
-      bpp = 3;
-      break;
-    case FORMAT_RGBX:
-    case FORMAT_BGRX:
-    case FORMAT_XRGB:
-    case FORMAT_XBGR:
-    case FORMAT_RGBA:
-    case FORMAT_BGRA:
-    case FORMAT_ABGR:
-    case FORMAT_ARGB:
-      bpp = 4;
-      break;
-    default:
-      _throw("Invalid input format");
+  props.bpp = 0;
+  switch (props.format)
+  {
+  case TJPF_GRAY:
+    props.bpp = 1;
+    break;
+  case TJPF_RGB:
+  case TJPF_BGR:
+    props.bpp = 3;
+    break;
+  case TJPF_RGBX:
+  case TJPF_BGRX:
+  case TJPF_XRGB:
+  case TJPF_XBGR:
+  case TJPF_RGBA:
+  case TJPF_BGRA:
+  case TJPF_ABGR:
+  case TJPF_ARGB:
+    props.bpp = 4;
+    break;
+  default:
+    Napi::TypeError::New(env, "Invalid input format").ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  if (srcBufferLength < stride * height * bpp) {
-    _throw("Source data is not long enough");
+  props.stride = parsedOptions.width;
+  Napi::Value tmpStride = options.Get("stride");
+  if (!tmpStride.IsUndefined())
+  {
+    if (!tmpStride.IsNumber())
+    {
+      Napi::TypeError::New(env, "Invalid stride").ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    props.stride = tmpStride.As<Napi::Number>().Uint32Value();
   }
 
-  // Do either async or sync compress
-  if (async) {
-    AsyncQueueWorker(new CompressWorker(callback, srcData, format, width, stride, height, jpegSubsamp, quality, bpp, dstObject, dstData, dstBufferLength));
-    return;
+  props.quality = NJT_DEFAULT_QUALITY;
+  Napi::Value tmpQuality = options.Get("quality");
+  if (!tmpQuality.IsUndefined())
+  {
+    if (!tmpQuality.IsNumber())
+    {
+      Napi::TypeError::New(env, "Invalid quality").ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    props.quality = tmpQuality.As<Napi::Number>().Uint32Value();
   }
-  else {
-    retval = compress(
-        srcData,
-        format,
-        width,
-        stride,
-        height,
-        jpegSubsamp,
-        quality,
-        bpp,
-        &jpegSize,
-        &dstData,
-        dstBufferLength);
-
-    if(retval != 0) {
-      // Compress will set the errStr
-      goto bailout;
-    }
-    Local<Object> obj = New<Object>();
-    if (dstBufferLength == 0) {
-      dstObject = NewBuffer((char*)dstData, jpegSize, compressBufferFreeCallback, NULL).ToLocalChecked();
-    }
-
-    Nan::Set(obj, New("data").ToLocalChecked(), dstObject);
-    Nan::Set(obj, New("size").ToLocalChecked(), New((uint32_t) jpegSize));
-    info.GetReturnValue().Set(obj);
-    return;
+  if (props.quality <= 0 || props.quality > 100)
+  {
+    Napi::TypeError::New(env, "Invalid quality").ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  // If we have error throw error or call callback with error
-  bailout:
-  if (retval != 0) {
-    if (NULL == callback) {
-      ThrowError(TypeError(errStr));
+  if (srcBuffer.Length() < props.stride * props.height * props.bpp)
+  {
+    Napi::TypeError::New(env, "Source data is not long enough").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  props.flags = TJFLAG_FASTDCT;
+  props.resSize = 0;
+  props.resData = nullptr;
+
+  uint32_t dstLength = tjBufSize(props.width, props.height, props.subsampling);
+  if (!dstBuffer.IsEmpty())
+  {
+    props.flags |= TJFLAG_NOREALLOC;
+    props.resSize = dstBuffer.Length();
+    props.resData = dstBuffer.Data();
+
+    if (dstLength > props.resSize)
+    {
+      Napi::TypeError::New(env, "Insufficient output buffer").ThrowAsJavaScriptException();
+      return env.Null();
     }
-    else {
-      Local<Value> argv[] = {
-        New(errStr).ToLocalChecked()
-      };
-      callback->Call(1, argv, nullptr);
+  }
+
+  if (async)
+  {
+    CompressWorker *wk = new CompressWorker(env, srcBuffer, dstBuffer, props);
+    wk->Queue();
+    return wk->GetPromise();
+  }
+  else
+  {
+    std::string errStr = DoCompress(props);
+    if (!errStr.empty())
+    {
+      Napi::TypeError::New(env, errStr).ThrowAsJavaScriptException();
+      return env.Null();
     }
-    return;
+
+    return CompressResult(env, dstBuffer, props);
   }
 }
 
-NAN_METHOD(CompressSync) {
-  compressParse(info, false);
+Napi::Value CompressAsync(const Napi::CallbackInfo &info)
+{
+  return CompressInner(info, true);
 }
 
-NAN_METHOD(Compress) {
-  compressParse(info, true);
+Napi::Value CompressSync(const Napi::CallbackInfo &info)
+{
+  return CompressInner(info, false);
 }
-

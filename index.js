@@ -13,8 +13,25 @@ module.exports.compressSync = function(buffer, optionalOutBuffer, options) {
 }
 
 // Convenience wrapper for Buffer slicing.
+module.exports.compress = function(a,b,c) {
+  return binding.compress(a,b,c).then(out => {
+    out.data = out.data.slice(0, out.size)
+    return out
+  })
+}
+
+
+// Convenience wrapper for Buffer slicing.
 module.exports.decompressSync = function(buffer, optionalOutBuffer, options) {
   var out = binding.decompressSync(buffer, optionalOutBuffer, options)
   out.data = out.data.slice(0, out.size)
   return out
+}
+
+// Convenience wrapper for Buffer slicing.
+module.exports.decompress = function(a,b,c) {
+  return binding.decompress(a,b,c).then(out => {
+    out.data = out.data.slice(0, out.size)
+    return out
+  })
 }

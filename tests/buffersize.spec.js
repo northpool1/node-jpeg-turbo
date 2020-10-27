@@ -2,25 +2,30 @@ const { bufferSize, SAMP_420, SAMP_GRAY, SAMP_444 } = require("..");
 
 describe("buffersize", () => {
   test("check options", () => {
-    expect(() => bufferSize()).toThrow();
-    expect(() => bufferSize(null)).toThrow();
-    expect(() => bufferSize(1)).toThrow();
-    expect(() => bufferSize("")).toThrow();
-    expect(() => bufferSize({})).toThrow();
+    expect(() => bufferSize()).toThrow('Not enough arguments');
+    expect(() => bufferSize(null)).toThrow('Invalid options');
+    expect(() => bufferSize(1)).toThrow('Invalid options');
+    expect(() => bufferSize("")).toThrow('Invalid options');
+    expect(() => bufferSize({})).toThrow('Invalid width');
 
-    // Maybe these below should throw, but at least they dont crash
-    bufferSize({
-      width: {},
-      height: {}
-    });
-    bufferSize({
-      width: "abc",
-      height: "abc"
-    });
-    bufferSize({
-      width: null,
-      height: null
-    });
+    expect(() =>
+      bufferSize({
+        width: {},
+        height: {}
+      })
+    ).toThrow('Invalid width');
+    expect(() =>
+      bufferSize({
+        width: "abc",
+        height: "abc"
+      })
+    ).toThrow('Invalid width');
+    expect(() =>
+      bufferSize({
+        width: null,
+        height: null
+      })
+    ).toThrow('Invalid width');
   });
 
   test("check result", () => {
@@ -59,31 +64,36 @@ describe("buffersize", () => {
         height: 10,
         subsampling: 9999
       })
-    ).toThrow();
+    ).toThrow('Invalid subsampling');
     expect(() =>
       bufferSize({
         width: 10,
         height: 10,
         subsampling: -1
       })
-    ).toThrow();
+    ).toThrow('Invalid subsampling');
 
-    // Maybe these below should throw, but at least they dont crash
-    bufferSize({
-      width: 10,
-      height: 10,
-      subsampling: "abc"
-    });
-    bufferSize({
-      width: 10,
-      height: 10,
-      subsampling: null
-    });
-    bufferSize({
-      width: 10,
-      height: 10,
-      subsampling: {}
-    });
+    expect(() =>
+      bufferSize({
+        width: 10,
+        height: 10,
+        subsampling: "abc"
+      })
+    ).toThrow('Invalid subsampling');
+    expect(() =>
+      bufferSize({
+        width: 10,
+        height: 10,
+        subsampling: null
+      })
+    ).toThrow('Invalid subsampling');
+    expect(() =>
+      bufferSize({
+        width: 10,
+        height: 10,
+        subsampling: {}
+      })
+    ).toThrow('Invalid subsampling');
   });
 
   test("check result: subsampling", () => {

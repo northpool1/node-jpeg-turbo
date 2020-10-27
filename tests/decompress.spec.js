@@ -3,7 +3,7 @@ const { promisify } = require("util");
 const { readFileSync } = require("fs");
 const path = require("path");
 
-const decompress2 = promisify(decompress);
+const decompress2 = (decompress);
 
 const sampleJpeg1 = readFileSync(path.join(__dirname, "github_logo.jpg"));
 const sampleJpeg1Pixels = 560 * 560;
@@ -16,17 +16,19 @@ describe("decompress", () => {
     decompressSync(sampleJpeg1, okOptions);
     decompressSync(sampleJpeg1, Buffer.alloc(sampleJpeg1Pixels * 3), okOptions);
 
-    expect(() => decompressSync()).toThrow();
-    expect(() => decompressSync(null, okOptions)).toThrow();
-    expect(() => decompressSync(undefined, okOptions)).toThrow();
-    expect(() => decompressSync({}, okOptions)).toThrow();
+    expect(() => decompressSync()).toThrow('Invalid source buffer');
+    expect(() => decompressSync(null, okOptions)).toThrow('Invalid source buffer');
+    expect(() => decompressSync(undefined, okOptions)).toThrow('Invalid source buffer');
+    expect(() => decompressSync({}, okOptions)).toThrow('Invalid source buffer');
   });
 
   test("check decompressSync options", () => {
     const okOptions = {
       format: FORMAT_BGR
     };
-    decompressSync(sampleJpeg1, {});
+    expect(() =>
+      decompressSync(sampleJpeg1, {})
+    ).toThrow('Invalid format');
     decompressSync(sampleJpeg1, okOptions);
 
     // Format
@@ -34,12 +36,12 @@ describe("decompress", () => {
       decompressSync(sampleJpeg1, {
         format: -1
       })
-    ).toThrow();
+    ).toThrow('Invalid output format');
     expect(() =>
       decompressSync(sampleJpeg1, {
         format: 50
       })
-    ).toThrow();
+    ).toThrow('Invalid output format');
   });
 
   test("check decompressSync dest buffer length", () => {
@@ -49,11 +51,11 @@ describe("decompress", () => {
     decompressSync(sampleJpeg1, Buffer.alloc(10000000), options);
     decompressSync(sampleJpeg1, Buffer.alloc(sampleJpeg1Pixels * 4), options);
     decompressSync(sampleJpeg1, Buffer.alloc(sampleJpeg1Pixels * 3), { format: FORMAT_BGR });
-    decompressSync(sampleJpeg1, Buffer.alloc(0), options);
 
-    expect(() => decompressSync(sampleJpeg1, Buffer.alloc(10), options)).toThrow();
-    expect(() => decompressSync(sampleJpeg1, Buffer.alloc(1000), options)).toThrow();
-    expect(() => decompressSync(sampleJpeg1, Buffer.alloc(sampleJpeg1Pixels * 3), options)).toThrow();
+    expect(() => decompressSync(sampleJpeg1, Buffer.alloc(0), options)).toThrow('Invalid destination buffer');
+    expect(() => decompressSync(sampleJpeg1, Buffer.alloc(10), options)).toThrow('Insufficient output buffer');
+    expect(() => decompressSync(sampleJpeg1, Buffer.alloc(1000), options)).toThrow('Insufficient output buffer');
+    expect(() => decompressSync(sampleJpeg1, Buffer.alloc(sampleJpeg1Pixels * 3), options)).toThrow('Insufficient output buffer');
   });
 
   test("check libjpeg errors throw", async () => {
@@ -92,6 +94,7 @@ describe("decompress", () => {
 
     // Overfeed the dest buffer
     const res5 = decompressSync(sampleJpeg1, Buffer.alloc(target * 2), options);
+    expect(res5.size).toEqual(target);
     expect(res5.data.length).toEqual(target);
   });
 });

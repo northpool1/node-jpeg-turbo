@@ -36,21 +36,21 @@ export interface CompressReturn {
 }
 
 export function bufferSize(options: BufferSizeOptions): number;
+
 export function compressSync(raw: Buffer, options: EncodeOptions): CompressReturn;
 export function compressSync(raw: Buffer, preallocatedOut: Buffer, options: EncodeOptions): CompressReturn;
-export function compress(raw: Buffer, options: EncodeOptions, callback: (err: any, image: CompressReturn) => void): void;
+
+export function compress(raw: Buffer, options: EncodeOptions): Promise<CompressReturn>;
 export function compress(
   raw: Buffer,
   preallocatedOut: Buffer,
-  options: EncodeOptions,
-  callback: (err: any, image: CompressReturn) => void
-): void;
+  options: EncodeOptions
+): Promise<CompressReturn>;
 
 export interface DecodeOptions {
   format: Format;
 }
 
-export type DecodeResult = DecompressReturn
 export interface DecompressReturn {
   data: Buffer;
   width: number;
@@ -65,12 +65,6 @@ export function decompressSync(image: Buffer, options?: DecodeOptions): Decompre
 export function decompress(
   image: Buffer,
   preallocatedOut: Buffer,
-  options: DecodeOptions,
-  callback: (err: any, image: DecompressReturn) => void
-): void;
-export function decompress(
-  image: Buffer,
-  options: DecodeOptions,
-  callback: (err: any, image: DecompressReturn) => void
-): void;
-export function decompress(image: Buffer, callback: (err: any, image: DecompressReturn) => void): void;
+  options?: DecodeOptions
+): Promise<DecompressReturn>;
+export function decompress(image: Buffer, options?: DecodeOptions): Promise<DecompressReturn>;

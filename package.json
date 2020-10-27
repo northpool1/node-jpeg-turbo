@@ -12,21 +12,29 @@
     "type": "git",
     "url": "https://github.com/julusian/node-jpeg-turbo.git"
   },
+  "binary": {
+    "napi_versions": [
+      3
+    ]
+  },
+  "engines": {
+    "node": ">=10"
+  },
   "main": "./index.js",
   "types": "./module.d.ts",
   "dependencies": {
     "bindings": "^1.5.0",
-    "cmake-js": "^5.3.2",
-    "nan": "^2.14.0",
+    "cmake-js": "^6.1.0",
+    "node-addon-api": "^3.0.2",
     "prebuild-install": "^5.3.3"
   },
   "scripts": {
-    "install": "prebuild-install || cmake-js compile --target jpegturbo",
-    "prebuild": "prebuild --all --verbose --backend cmake-js -- --target jpegturbo",
+    "install": "prebuild-install -r napi || cmake-js compile --target jpegturbo",
+    "prebuild": "prebuild -r napi --all --verbose --backend cmake-js -- --target jpegturbo",
     "test": "jest"
   },
   "devDependencies": {
-    "jest": "^24.8.0",
+    "jest": "^26.4.2",
     "prebuild": "^10.0.0"
   }
 }

@@ -1,7 +1,6 @@
 const { compressSync, compress, bufferSize, SAMP_444, FORMAT_BGR, FORMAT_BGRA, FORMAT_GRAY } = require("..");
-const { promisify } = require("util");
 
-const compress2 = promisify(compress);
+const compress2 = (compress);
 
 describe("compress", () => {
   test("check compressSync parameters", () => {
@@ -15,18 +14,18 @@ describe("compress", () => {
     compressSync(tmpBuffer, okOptions);
     compressSync(tmpBuffer, Buffer.alloc(90000), okOptions);
 
-    expect(() => compressSync()).toThrow();
-    expect(() => compressSync(null, okOptions)).toThrow();
-    expect(() => compressSync(undefined, okOptions)).toThrow();
-    expect(() => compressSync({}, okOptions)).toThrow();
+    expect(() => compressSync()).toThrow('Invalid source buffer');
+    expect(() => compressSync(null, okOptions)).toThrow('Invalid source buffer');
+    expect(() => compressSync(undefined, okOptions)).toThrow('Invalid source buffer');
+    expect(() => compressSync({}, okOptions)).toThrow('Invalid source buffer');
 
-    expect(() => compressSync(tmpBuffer, undefined)).toThrow();
-    expect(() => compressSync(tmpBuffer, null)).toThrow();
-    expect(() => compressSync(tmpBuffer, {})).toThrow();
+    expect(() => compressSync(tmpBuffer, undefined)).toThrow('Invalid options');
+    expect(() => compressSync(tmpBuffer, null)).toThrow('Invalid options');
+    expect(() => compressSync(tmpBuffer, {})).toThrow('Invalid width');
 
-    expect(() => compressSync(tmpBuffer, undefined, okOptions)).toThrow();
-    expect(() => compressSync(tmpBuffer, null, okOptions)).toThrow();
-    expect(() => compressSync(tmpBuffer, {}, okOptions)).toThrow();
+    expect(() => compressSync(tmpBuffer, undefined, okOptions)).toThrow('Invalid options');
+    expect(() => compressSync(tmpBuffer, null, okOptions)).toThrow('Invalid options');
+    expect(() => compressSync(tmpBuffer, {}, okOptions)).toThrow('Invalid width');
   });
 
   test("check compressSync options", () => {
@@ -46,14 +45,14 @@ describe("compress", () => {
         height: 10,
         format: FORMAT_BGR
       })
-    ).toThrow();
+    ).toThrow('Source data is not long enough');
     expect(() =>
       compressSync(tmpBuffer, {
         width: 10,
         height: -1,
         format: FORMAT_BGR
       })
-    ).toThrow();
+    ).toThrow('Source data is not long enough');
 
     // Format
     expect(() =>
@@ -62,14 +61,14 @@ describe("compress", () => {
         height: 10,
         format: -1
       })
-    ).toThrow();
+    ).toThrow('Invalid input format');
     expect(() =>
       compressSync(tmpBuffer, {
         width: 10,
         height: 10,
         format: 50
       })
-    ).toThrow();
+    ).toThrow('Invalid input format');
 
     // Quality
     expect(() =>
@@ -79,7 +78,7 @@ describe("compress", () => {
         format: FORMAT_BGR,
         quality: 101
       })
-    ).toThrow();
+    ).toThrow('Invalid quality');
     expect(() =>
       compressSync(tmpBuffer, {
         width: 10,
@@ -87,7 +86,7 @@ describe("compress", () => {
         format: FORMAT_BGR,
         quality: -1
       })
-    ).toThrow();
+    ).toThrow('Invalid quality');
     compressSync(tmpBuffer, {
       width: 10,
       height: 10,
@@ -103,7 +102,7 @@ describe("compress", () => {
         format: FORMAT_BGR,
         subsampling: -1
       })
-    ).toThrow();
+    ).toThrow('Invalid subsampling');
     expect(() =>
       compressSync(tmpBuffer, {
         width: 10,
@@ -111,7 +110,7 @@ describe("compress", () => {
         format: FORMAT_BGR,
         subsampling: 10
       })
-    ).toThrow();
+    ).toThrow('Invalid subsampling');
     compressSync(tmpBuffer, {
       width: 10,
       height: 10,
@@ -127,7 +126,7 @@ describe("compress", () => {
         format: FORMAT_BGR,
         stride: -1
       })
-    ).toThrow();
+    ).toThrow('Source data is not long enough')
     compressSync(Buffer.alloc(100 * 10 * 3), {
       width: 10,
       height: 10,
@@ -140,7 +139,7 @@ describe("compress", () => {
     let testSize = (options, target) => {
       compressSync(Buffer.alloc(target), options);
       compressSync(Buffer.alloc(target * 2), options);
-      expect(() => compressSync(Buffer.alloc(target - 1), options)).toThrow();
+      expect(() => compressSync(Buffer.alloc(target - 1), options)).toThrow('Source data is not long enough');
     };
 
     testSize(
@@ -185,7 +184,7 @@ describe("compress", () => {
         height: 10,
         format: FORMAT_BGRA
       })
-    ).toThrow();
+    ).toThrow('Source data is not long enough');
 
     expect(() =>
       compressSync(Buffer.alloc(0), {
@@ -193,7 +192,7 @@ describe("compress", () => {
         height: 10,
         format: FORMAT_BGRA
       })
-    ).toThrow();
+    ).toThrow('Source data is not long enough');
   });
 
   test("check compressSync dest buffer length", () => {
@@ -204,10 +203,10 @@ describe("compress", () => {
       format: FORMAT_BGRA
     };
     compressSync(source, Buffer.alloc(10000000), options);
-    compressSync(source, Buffer.alloc(0), options);
+    expect(() => compressSync(source, Buffer.alloc(0), options)).toThrow('Invalid destination buffer');
 
-    expect(() => compressSync(source, Buffer.alloc(10), options)).toThrow();
-    expect(() => compressSync(source, Buffer.alloc(1000), options)).toThrow();
+    expect(() => compressSync(source, Buffer.alloc(10), options)).toThrow('Insufficient output buffer');
+    expect(() => compressSync(source, Buffer.alloc(1000), options)).toThrow('Insufficient output buffer');
   });
 
   test("check libjpeg errors throw", async () => {
