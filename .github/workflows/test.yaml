@@ -33,7 +33,7 @@ jobs:
       run: |
           mkdir c:\yasm
           curl -o "c:\yasm\yasm.exe" http://www.tortall.net/projects/yasm/releases/yasm-1.3.0-win64.exe
-          echo "::add-path::c:\yasm"
+          echo "c:\yasm" >> $GITHUB_PATH
     - name: Install macOS dependencies
       if: runner.os == 'macOS'
       run: |
