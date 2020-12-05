@@ -15,8 +15,7 @@ module.exports.compressSync = function(buffer, optionalOutBuffer, options) {
 // Convenience wrapper for Buffer slicing.
 module.exports.compress = function(a,b,c) {
   return binding.compress(a,b,c).then(out => {
-    out.data = out.data.slice(0, out.size)
-    return out
+    return out.data.slice(0, out.size)
   })
 }
 

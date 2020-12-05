@@ -30,22 +30,17 @@ export interface EncodeOptions extends BufferSizeOptions {
   quality?: number;
 }
 
-export interface CompressReturn {
-  data: Buffer;
-  size: number;
-}
-
 export function bufferSize(options: BufferSizeOptions): number;
 
-export function compressSync(raw: Buffer, options: EncodeOptions): CompressReturn;
-export function compressSync(raw: Buffer, preallocatedOut: Buffer, options: EncodeOptions): CompressReturn;
+export function compressSync(raw: Buffer, options: EncodeOptions): Buffer;
+export function compressSync(raw: Buffer, preallocatedOut: Buffer, options: EncodeOptions): Buffer;
 
-export function compress(raw: Buffer, options: EncodeOptions): Promise<CompressReturn>;
+export function compress(raw: Buffer, options: EncodeOptions): Promise<Buffer>;
 export function compress(
   raw: Buffer,
   preallocatedOut: Buffer,
   options: EncodeOptions
-): Promise<CompressReturn>;
+): Promise<Buffer>;
 
 export interface DecodeOptions {
   format: Format;
