@@ -233,13 +233,13 @@ describe("compress", () => {
     expect(res1.length).toBeGreaterThan(500);
 
     const res2 = await compress2(source, dest, options);
-    expect(res2.size).toEqual(res1.length);
+    expect(res2.length).toEqual(res1.length);
 
     const res3 = compressSync(source, options);
     expect(res3.length).toEqual(res1.length);
 
     const res4 = await compress2(source, options);
-    expect(res4.size).toEqual(res1.length);
+    expect(res4.length).toEqual(res1.length);
   });
 
   function generateRandomData(length) {
@@ -263,12 +263,12 @@ describe("compress", () => {
     expect(res1.length).toBeGreaterThan(500);
 
     const res2 = await compress2(source1, dest, options);
-    expect(res2.size).toEqual(res1.length);
+    expect(res2.length).toEqual(res1.length);
 
     const res3 = compressSync(source1, options);
     expect(res3.length).toEqual(res1.length);
 
     const res4 = await compress2(source1, options);
-    expect(res4.size).toEqual(res1.length);
+    expect(res4.length).toEqual(res1.length);
   });
 });
