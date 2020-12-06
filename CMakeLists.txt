@@ -35,6 +35,8 @@ set(SOURCE_FILES
   "src/exports.cc"
 )
 
+option(WITH_JPEG8 "" 1)
+option(ENABLE_SHARED "" 0)
 add_subdirectory("deps/libjpeg-turbo")
 
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES} ${HEADER_FILES} ${CMAKE_JS_SRC})
