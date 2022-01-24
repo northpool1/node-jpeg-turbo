@@ -63,13 +63,19 @@ std::string DoDecompress(DecompressProps &props)
   return "";
 }
 
+void deCompressBufferFreeCallback(Napi::Env env, unsigned char *data)
+{
+  tjFree(data);
+}
+
+
 Napi::Object DecompressResult(const Napi::Env &env, const Napi::Buffer<unsigned char> dstBuffer, const DecompressProps &props)
 {
   Napi::Buffer<unsigned char> resBuffer = dstBuffer;
 
   if (resBuffer.IsEmpty())
   {
-    resBuffer = Napi::Buffer<unsigned char>::New(env, props.resData, props.resSize);
+    resBuffer = Napi::Buffer<unsigned char>::New(env, props.resData, props.resSize,deCompressBufferFreeCallback);
   }
 
   Napi::Object res = Napi::Object::New(env);
